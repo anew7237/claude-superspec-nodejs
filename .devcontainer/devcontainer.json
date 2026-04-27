@@ -1,0 +1,128 @@
+{
+  "name": "spec-kit-docker-dev",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+
+  // ============================================================
+  // Features:
+  //   - Anthropic 官方 Claude Code feature
+  //   - Docker outside of Docker:容器內的 docker CLI 透過 mount
+  //     進來的 socket 操作 host daemon。比 docker-in-docker 快
+  //     很多,在 Apple Silicon 上尤其明顯。
+  //   - Git + GitHub CLI
+  // ============================================================
+  "features": {
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1": {},
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
+      "moby": true,
+      "installDockerComposeSwitch": true,
+      "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "22"
+    },
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+
+  // ============================================================
+  // Mounts:
+  //   - ~/.claude 與 ~/.claude.json:從 host bind mount,讓
+  //     OAuth 認證跨容器重建保留。注意這只在你「自己的機器」
+  //     有意義,團隊成員 clone repo 後會用各自的 ~/.claude
+  //   - bash history:用 named volume,跨重建保留指令歷史
+  //   - 注意 ${localEnv:HOME} 在 Mac 是 /Users/xxx,在 WSL 是
+  //     /home/xxx,VS Code Dev Containers 會自動處理
+  // ============================================================
+  "mounts": [
+    "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.claude.json,target=/home/vscode/.claude.json,type=bind",
+    "source=spec-kit-bash-history-${devcontainerId},target=/commandhistory,type=volume"
+  ],
+
+  // ============================================================
+  // 環境變數
+  //   - SHELL:預設 zsh,有需要改 bash 的話改這裡
+  //   - PYTHONUNBUFFERED:讓 docker logs 即時看到 Python 輸出
+  // ============================================================
+  "containerEnv": {
+    "SHELL": "/bin/bash",
+    // host 絕對路徑,供 docker-compose.yml 的 bind mount 用
+    // (docker-outside-of-docker 讓 compose 透過 host daemon 開 sibling
+    //  container,但不做路徑翻譯;若用相對 "." 會傳成 devcontainer 內路徑
+    //  /workspaces/xxx,host daemon 找不到 → 新容器的 /app 會是空的)
+    "LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}",
+    // Node 22 corepack 在首次 pnpm 調用會印 "Do you want to continue? (Y/n)"
+    // 並讀 /dev/tty,non-tty 環境(devcontainer postCreate)會永遠卡住。
+    // post-create.sh 已 export 同名變數覆蓋本腳本子 process,但若使用者
+    // 後續在容器內手動 `pnpm xxx`,需要這裡的 containerEnv 才能整個容器
+    // 環境都吃到。兩處都設是 belt-and-suspenders。
+    "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0"
+  },
+
+  // ============================================================
+  // runArgs:
+  //   --init:讓 PID 1 是個正規的 init,避免 zombie process
+  //   --cap-add:給 init-firewall.sh 用 iptables(若不啟用 firewall
+  //              可以拿掉這兩行)
+  // ============================================================
+  "runArgs": [
+    "--init",
+    "--cap-add=NET_ADMIN",
+    "--cap-add=NET_RAW"
+  ],
+
+  // ============================================================
+  // 生命週期
+  //   onCreateCommand: 容器第一次建立時跑(在 image build 之後)
+  //   postCreateCommand: 等同上面,但通常用來裝專案層級工具
+  //   postStartCommand: 每次容器啟動都跑(不是只第一次)
+  // ============================================================
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "postStartCommand": "sudo /usr/local/bin/init-firewall.sh || echo 'firewall skipped (not enabled)'",
+
+  "remoteUser": "vscode",
+
+  // ============================================================
+  // VS Code 整合
+  // ============================================================
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "anthropic.claude-code",
+        "ms-azuretools.vscode-docker",
+        "eamodio.gitlens",
+        "github.vscode-pull-request-github",
+        "redhat.vscode-yaml",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "editorconfig.editorconfig"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "editor.formatOnSave": true,
+        "files.eol": "\n"
+      }
+    }
+  },
+
+  // ============================================================
+  // forwardPorts:VS Code 把 **dev container 內** listen 的 port 轉發到 host。
+  //
+  // 此 template 的應用跑在 sibling compose container(非 dev container),
+  // 已經由 compose 的 `ports:` 直接 publish 到 host。再用 forwardPorts 宣告
+  // 同一個 port 會讓 VS Code 先搶去 bind localhost:<port>,結果 compose 的
+  // port publish 被遮蔽,host 端 curl 會打到 VS Code 空轉的 forwarder。
+  //
+  // 如果你改用 `pnpm dev` 在 dev container 內直接跑 app(不走 compose),
+  // 再把對應 port(例如 8000)加進 forwardPorts。
+  // ============================================================
+  "forwardPorts": [],
+
+  // ============================================================
+  // workspaceFolder:容器內工作目錄
+  // 預設 /workspaces/${localWorkspaceFolderBasename},一般不用改
+  // ============================================================
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}"
+}
