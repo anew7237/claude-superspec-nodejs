@@ -1,0 +1,24 @@
+# ============================================================
+# 跨平台行尾結束符統一(Mac/Linux LF,避免 Windows 端 CRLF 污染)
+# ============================================================
+* text=auto eol=lf
+
+# Shell scripts 必須 LF,不然在 Linux 會壞
+*.sh text eol=lf
+
+# Windows 原生檔案保留 CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# 二進位
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.tar binary
+*.gz binary
+*.7z binary
