@@ -1,8 +1,21 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 1.1.0 → 1.2.0
-Bump rationale: MINOR — re-worded normative rules to be tool- and file-agnostic
+Current version: 1.2.1
+
+Version history (most recent first):
+
+PATCH 1.2.0 → 1.2.1 (2026-04-28) — non-semantic refinement:
+  - Updated TODO(README_LEGACY_SECTIONS) to record that the README's "Python
+    migration" subsection was removed on 2026-04-28 along with the Makefile
+    `prune-legacy` target. Only the "HTTP middleware metrics 002" item remains
+    unresolved under that TODO.
+  - Corrected stale "unchanged from 1.1.0" annotations on the Templates and
+    Follow-up TODOs lists (those entries had in fact been refreshed during the
+    1.2.0 rewrite, so the qualifier was misleading).
+  - No principles, sections, quality gates, or normative text changed in 1.2.1.
+
+MINOR 1.1.0 → 1.2.0 — re-worded normative rules to be tool- and file-agnostic
                 where the underlying intent is portable, so the constitution no
                 longer depends on neighbouring files (Makefile, Dockerfile path,
                 docker-compose.yml, .gitattributes, .gitignore, eslint.config.js,
@@ -15,7 +28,7 @@ Bump rationale: MINOR — re-worded normative rules to be tool- and file-agnosti
                 pipeline command names) because they name spec-kit/Claude Code
                 integration contracts that this project explicitly opts into.
 
-Modified principles (re-worded only, no semantic change):
+Modified principles in 1.2.0 (re-worded only, no semantic change):
   - III. Container-First Reproducibility — multi-arch policy now references
         "orchestration declaration" and "adopter-facing documentation" instead of
         `docker-compose.yml` and `README`; "image definitions" instead of
@@ -23,20 +36,20 @@ Modified principles (re-worded only, no semantic change):
   - IV. Type Safety End-to-End — ESLint/Prettier rule no longer points at
         `eslint.config.js` filename or `make lint`/`make format` invocations.
 
-Modified sections (re-worded only):
+Modified sections in 1.2.0 (re-worded only):
   - Technology Stack & Constraints — runtime version enforcement (#2), line
         endings (#5), non-root production (#6), port exposure (#7) generalised.
   - Development Workflow & Quality Gates — quality gates 1-3 (#8), inner loop
         (#9), source-control operations (#10), ignore-layer wording (#11)
         generalised.
 
-Added sections:
+Added sections in 1.2.0:
   - Reference Implementation Notes (non-normative) — consolidates the concrete
         invocations and file paths that currently realise the normative rules.
 
-Removed sections: none.
+Removed sections in any version since 1.0.0: none.
 
-Templates requiring updates (manual follow-up — unchanged from 1.1.0):
+Templates requiring updates (current status, manual follow-up):
   ✅ plan-template.md — abstract `## Constitution Check` gate, no rebinding needed
   ✅ spec-template.md — agnostic, no rebinding needed
   ⚠ tasks-template.md — sample tasks reference `.py` extensions (Python-era
@@ -50,14 +63,15 @@ Templates requiring updates (manual follow-up — unchanged from 1.1.0):
      topic, not by section number, since README headings may be renumbered)
   ✅ CLAUDE.md — referenced as runtime AI agent guidance; aligned
 
-Follow-up TODOs (unchanged from 1.1.0):
+Follow-up TODOs (current status):
   - TODO(PACKAGE_NAME): `package.json` still uses `"name": "myapp"`; consider
     renaming to `claude-superspec-nodejs` to match the project identity declared
     here.
-  - TODO(README_LEGACY_SECTIONS): README sections covering "Python migration" and
-    "HTTP middleware metrics 002" appear to be inherited from a prior project.
-    Decide whether they remain as adopter-facing reference, or are pruned for a
-    clean starter-template surface.
+  - TODO(README_LEGACY_SECTIONS): README section covering "HTTP middleware
+    metrics 002" appears to be inherited from a prior project. Decide whether
+    it remains as adopter-facing reference, or is pruned for a clean
+    starter-template surface. The "Python migration" subsection of this TODO
+    was resolved on 2026-04-28 along with the Makefile `prune-legacy` target.
 -->
 
 # Claude SuperSpec Node.js Constitution
@@ -330,4 +344,4 @@ cited as authority for refusing or accepting changes.
 - Source-control credential forwarding: SSH agent forwarded by the dev
   container.
 
-**Version**: 1.2.0 | **Ratified**: 2026-04-28 | **Last Amended**: 2026-04-28
+**Version**: 1.2.1 | **Ratified**: 2026-04-28 | **Last Amended**: 2026-04-28
