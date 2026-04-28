@@ -227,7 +227,7 @@ VS Code Command Palette → `Dev Containers: Rebuild Container`
 ## 10. HTTP 業務指標
 
 `/metrics` endpoint 除 001 提供的 default runtime metrics(`process_*`、`nodejs_*`)外,
-自 002 起**預設**再暴露兩個 HTTP 層業務指標,供 Prometheus / VictoriaMetrics scrape、
+**預設**再暴露兩個 HTTP 層業務指標,供 Prometheus / VictoriaMetrics scrape、
 Grafana 畫 per-route QPS 與 latency 分佈。
 
 ### 指標清單

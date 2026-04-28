@@ -7,7 +7,7 @@ import { logger } from './logger.ts';
  * Factory producing a Hono middleware that records two HTTP business metrics
  * (counter + duration histogram) against the shared prom-client `register`.
  *
- * Design notes (see specs/002-http-middleware-metrics/research.md):
+ * Design notes (see specs/000-http-middleware-metrics/research.md):
  * - R6: metric objects are instantiated inside the factory body (NOT at module
  *   load) so that when `httpMetrics()` is never called (opt-out path in US2),
  *   no `http_*` metrics are registered and the `/metrics` scrape stays clean.

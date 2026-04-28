@@ -1,9 +1,21 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Current version: 1.2.1
+Current version: 1.2.2
 
 Version history (most recent first):
+
+PATCH 1.2.1 → 1.2.2 (2026-04-28) — non-semantic refinement:
+  - Resolved and removed TODO(README_LEGACY_SECTIONS). All "002" feature-id
+    references inherited from a prior project have been cleaned from
+    user-facing surfaces: README §10 wording, src/http-metrics.ts module
+    docs, docker-compose.yml comments, and .env.example comments. The
+    http-metrics middleware implementation itself was deliberately retained
+    as the project's HTTP observability default (consistent with
+    Principle II — Observability by Default).
+  - Active follow-up TODOs after this patch: only TODO(PACKAGE_NAME)
+    remains.
+  - No principles, sections, quality gates, or normative text changed.
 
 PATCH 1.2.0 → 1.2.1 (2026-04-28) — non-semantic refinement:
   - Updated TODO(README_LEGACY_SECTIONS) to record that the README's "Python
@@ -67,11 +79,6 @@ Follow-up TODOs (current status):
   - TODO(PACKAGE_NAME): `package.json` still uses `"name": "myapp"`; consider
     renaming to `claude-superspec-nodejs` to match the project identity declared
     here.
-  - TODO(README_LEGACY_SECTIONS): README section covering "HTTP middleware
-    metrics 002" appears to be inherited from a prior project. Decide whether
-    it remains as adopter-facing reference, or is pruned for a clean
-    starter-template surface. The "Python migration" subsection of this TODO
-    was resolved on 2026-04-28 along with the Makefile `prune-legacy` target.
 -->
 
 # Claude SuperSpec Node.js Constitution
@@ -344,4 +351,4 @@ cited as authority for refusing or accepting changes.
 - Source-control credential forwarding: SSH agent forwarded by the dev
   container.
 
-**Version**: 1.2.1 | **Ratified**: 2026-04-28 | **Last Amended**: 2026-04-28
+**Version**: 1.2.2 | **Ratified**: 2026-04-28 | **Last Amended**: 2026-04-28
