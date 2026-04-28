@@ -36,4 +36,12 @@ export default tseslint.config(
       '@typescript-eslint/no-floating-promises': 'off',
     },
   },
+  // SC-009: production code (src/) must not use console.*; tests are
+  // exempt (the tests/** block above is unaffected — fixture noise OK).
+  {
+    files: ['src/**/*.ts'],
+    rules: {
+      'no-console': 'error',
+    },
+  },
 );
