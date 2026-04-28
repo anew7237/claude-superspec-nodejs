@@ -200,6 +200,23 @@ docker inspect node:22-slim --format '{{.Architecture}}'
 檢查 Docker Desktop Rosetta 設定,或把問題套件改成 pure-JS 替代品
 (如 `bcryptjs` 取代 `bcrypt`)。
 
+### make up 失敗,顯示 `ERR_PNPM_OUTDATED_LOCKFILE`
+
+`pnpm-lock.yaml` 跟 `package.json` 不一致(常見原因:有人改了
+`package.json` 的版本但沒重新跑 `pnpm install`)。Dockerfile 用
+`--frozen-lockfile` 嚴格驗證,不一致就直接失敗。
+
+修法:在 devcontainer terminal 內重生 lockfile,然後 commit。
+
+```bash
+pnpm install                       # 重生 pnpm-lock.yaml
+pnpm install --frozen-lockfile     # 驗證(應該成功)
+git add pnpm-lock.yaml
+git commit -m "chore: refresh pnpm-lock.yaml"
+make up                            # 重新 build
+```
+
+
 ---
 
 ## 9. 升級
@@ -209,8 +226,7 @@ docker inspect node:22-slim --format '{{.Architecture}}'
 然後在 devcontainer 內(升級時加 `--force` 強制重裝;首次安裝由
 `post-create.sh` 自動處理,不需 `--force`):
 ```bash
-uv tool install specify-cli --force \
-  --from "git+https://github.com/github/spec-kit.git@v0.X.Y"
+uv tool install specify-cli --force --from "git+https://github.com/github/spec-kit.git@v0.8.1"
 ```
 
 ### Claude Code 升級
