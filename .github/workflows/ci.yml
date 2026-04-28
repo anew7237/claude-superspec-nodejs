@@ -1,0 +1,185 @@
+# CI workflow for claude-superspec-nodejs (feature 001-superspec-baseline).
+#
+# Role:
+#   Runs the mandatory quality gates (typecheck, lint, test) on every PR
+#   targeting main and on pushes to main / feature branches matching the
+#   NNN-* convention. Maps to FR-017 / SC-002 / Constitution G4.
+#
+# Runner matrix:
+#   - ubuntu-latest: closest CI-side approximation of the WSL2 Ubuntu host.
+#   - macos-latest:  represents the Mac M1 baseline host.
+#
+# WSL2 parity caveat:
+#   ubuntu-latest is bare Linux, not the WSL2 VM. It is a reasonable but
+#   imperfect approximation of the WSL2 dev-host environment. See
+#   specs/001-superspec-baseline/contracts/quality-gates.md ("WSL2 parity
+#   caveat") for the full discussion.
+#
+# Container parity note:
+#   tasks.md mentions running CI inside the multi-stage Dockerfile's `dev`
+#   stage to match the devcontainer image exactly. This first-cut workflow
+#   deliberately runs pnpm directly on the GitHub-hosted runners instead;
+#   true container parity is out of scope for T013 and may be revisited.
+#
+# T014 added the secret-scan job (gitleaks) to enforce SC-006.
+# T015 added the lockfile-drift job (path-filtered pnpm --frozen-lockfile)
+# to enforce FR-009 with a focused failure surface on PRs that touch
+# package.json or pnpm-lock.yaml.
+# T019 added the toolchain-isolation-check advisory job — comments on PRs
+# that mix toolchain-pin changes with src/ or tests/ changes (FR-019 / SC-005).
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, '[0-9][0-9][0-9]-*']
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-gates:
+    name: quality-gates-${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+
+  secret-scan:
+    name: secret-scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # gitleaks needs full history for `--log-opts`
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          # Optional but recommended:
+          # GITHUB_TOKEN is automatically provided by GitHub Actions.
+          # GITLEAKS_LICENSE only required for organization use; for public/personal repos this is a no-op.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  lockfile-drift:
+    name: lockfile-drift
+    runs-on: ubuntu-latest
+    # Only run on PRs that actually touch package.json / pnpm-lock.yaml
+    # (saves CI cycles on unrelated PRs; main `quality-gates` job still runs --frozen-lockfile on every PR as a safety net).
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect manifest/lockfile changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            deps:
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+
+      - name: Setup pnpm
+        if: steps.changes.outputs.deps == 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node 22
+        if: steps.changes.outputs.deps == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Verify lockfile is in sync with manifest
+        if: steps.changes.outputs.deps == 'true'
+        run: |
+          if ! pnpm install --frozen-lockfile; then
+            echo "::error::Lockfile drift detected: package.json was modified but pnpm-lock.yaml was not regenerated."
+            echo "::error::Fix: run \`pnpm install\` locally to refresh pnpm-lock.yaml, then commit the lockfile alongside the package.json change."
+            echo "::error::See README.md §8 ERR_PNPM_OUTDATED_LOCKFILE FAQ."
+            exit 1
+          fi
+
+  toolchain-isolation-check:
+    name: toolchain-isolation-check (advisory)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    permissions:
+      pull-requests: write   # to post a PR comment
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect mixed toolchain + app changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            toolchain:
+              - '.devcontainer/post-create.sh'
+              - '.devcontainer/devcontainer.json'
+            app:
+              - 'src/**'
+              - 'tests/**'
+
+      - name: Comment on PR if both toolchain + app changed
+        if: steps.changes.outputs.toolchain == 'true' && steps.changes.outputs.app == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = [
+              '> [!warning] **Toolchain isolation advisory** (FR-019)',
+              '>',
+              '> This PR touches BOTH toolchain pinning files (`.devcontainer/post-create.sh` or `.devcontainer/devcontainer.json`) AND application code (`src/**` or `tests/**`).',
+              '>',
+              '> Per Constitution Principle V + FR-019 + Quality Gates contract, toolchain bumps should land as **isolated commits / PRs** so they can be reverted standalone (SC-005).',
+              '>',
+              '> If this is genuinely a single inseparable change, document the rationale in this PR description (Reviewer can override). Otherwise, please split into:',
+              '> - PR A — toolchain version bump only',
+              '> - PR B — application changes only',
+              '>',
+              '> This check is **advisory** (does not fail CI). The PR template "Toolchain upgrade" section provides the manual checklist.',
+            ].join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+
