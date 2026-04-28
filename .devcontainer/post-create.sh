@@ -74,8 +74,14 @@ SPEC_KIT_VERSION="v0.8.1"
 
 if ! command -v specify >/dev/null 2>&1; then
     echo "==> Installing spec-kit ${SPEC_KIT_VERSION}..."
-    uv tool install specify-cli \
-        --from "git+https://github.com/github/spec-kit.git@${SPEC_KIT_VERSION}"
+    if ! uv tool install specify-cli \
+            --from "git+https://github.com/github/spec-kit.git@${SPEC_KIT_VERSION}"; then
+        echo "ERROR: spec-kit install failed — 上游(GitHub / PyPI)可能不可達。"
+        echo "       詳細處置見 .docs/upstream-outage-runbook.md(C. GitHub / D. npm registry)。"
+        echo "       本次安裝跳過;若上游已恢復,可手動執行 \`uv tool install --force ...\` 重試。"
+        # 仍 exit 1 讓 postCreateCommand 失敗醒目;adopter 會看到 VS Code 提示
+        exit 1
+    fi
 fi
 
 # ============================================================
@@ -88,8 +94,11 @@ SUPERPOWERS_DIR="$HOME/.claude/skills/superpowers"
 if [ ! -d "$SUPERPOWERS_DIR" ]; then
     echo "==> Cloning obra/superpowers..."
     mkdir -p "$HOME/.claude/skills"
-    git clone --depth=1 https://github.com/obra/superpowers "$SUPERPOWERS_DIR" || \
-        echo "WARN: failed to clone superpowers, continuing"
+    git clone --depth=1 https://github.com/obra/superpowers "$SUPERPOWERS_DIR" || {
+        echo "WARN: failed to clone superpowers — 上游(GitHub)可能不可達。"
+        echo "      詳細處置見 .docs/upstream-outage-runbook.md(C. GitHub)。"
+        echo "      容器將繼續啟動;superpowers 暫時不可用,等上游恢復後手動 git clone。"
+    }
 else
     echo "==> superpowers already present, skipping clone"
 fi
@@ -118,6 +127,13 @@ echo "  specify:    $(uv tool list 2>/dev/null | awk '/^specify-cli/ {print $2; 
 echo "  claude:     $(claude --version 2>/dev/null || echo 'NOT FOUND')"
 echo "  node:       $(node --version 2>/dev/null || echo 'NOT FOUND')"
 echo "  pnpm:       $(pnpm --version 2>/dev/null || echo 'NOT FOUND')"
+# engine-strict from .npmrc — value should be 'true' (T003 / FR-008).
+# If 'false' or missing, machine-enforcement of engines.node is advisory only.
+ENGINE_STRICT=$(pnpm config get engine-strict 2>/dev/null || echo 'unset')
+echo "  engine-strict: ${ENGINE_STRICT}"
+if [ "${ENGINE_STRICT}" != "true" ]; then
+    echo "WARN: engine-strict not active — Node version enforcement may be advisory only. Verify .npmrc contains 'engine-strict=true' (FR-008)."
+fi
 # tsc / vitest are project devDependencies; only available after `pnpm install`
 if [ -x node_modules/.bin/tsc ]; then
     echo "  tsc:        $(node_modules/.bin/tsc --version 2>/dev/null | awk '{print $NF}')"
@@ -134,6 +150,30 @@ echo "  docker compose: $(docker compose version 2>/dev/null | head -n1 || echo 
 echo "  git:        $(git --version 2>/dev/null || echo 'NOT FOUND')"
 echo "================================================================"
 echo ""
+
+# ============================================================
+# Claude OAuth credential health check
+#
+# `claude --version` 只驗證 binary 在不在,不能保證使用者已經登入。
+# 真正的 OAuth credential 是由 host 的 ~/.claude/.credentials.json
+# bind-mount 進來;若檔案不存在,downstream 指令會在第一次呼叫
+# Anthropic API 時才以 "not logged in" 失敗 —— 在 banner 階段就抓出來,
+# 給使用者明確可動作的訊息。
+#
+# set -e 友善:純 if/then/fi,read-only 探測,沒有副作用。
+# ============================================================
+if [ ! -f "$HOME/.claude/.credentials.json" ]; then
+    echo "WARN: Claude Code OAuth credentials not detected at ~/.claude/.credentials.json"
+    echo "    請在「宿主端」(non-container) 執行:"
+    echo "      claude"
+    echo "    完成 OAuth login 後,重啟容器(VS Code → Rebuild Container)。"
+    echo "    WSL2 用戶請確認 repo clone 在 WSL 檔案系統(~/),"
+    echo "    不要放於 /mnt/c/(host bind mount 路徑會無法解析)。"
+else
+    echo "==> Claude OAuth credentials detected (host-mounted)"
+fi
+echo ""
+
 echo "Next steps:"
 echo "  1. Run 'claude' to start Claude Code (login if first time)"
 echo "  2. Try /speckit-constitution to set project principles"
@@ -163,5 +203,31 @@ sudo install -m 0755 .devcontainer/init-firewall.sh /usr/local/bin/init-firewall
 # 驗證:看 ENABLE_FIREWALL guard 在不在(辨認是否真的是 project 版本)
 if ! grep -q 'ENABLE_FIREWALL' /usr/local/bin/init-firewall.sh; then
     echo "WARN: /usr/local/bin/init-firewall.sh 看起來不是 project 版本,restore 可能失敗"
+fi
+
+# ============================================================
+# SSH agent forwarding sanity check (Gap G3 / FR-014)
+#
+# devcontainer.json 已顯式宣告 ${localEnv:SSH_AUTH_SOCK} → /ssh-agent
+# 的 bind mount,並把容器內 SSH_AUTH_SOCK 指向 /ssh-agent。這段檢查
+# 在容器啟動後驗證 socket 真的可用,並讓使用者清楚知道 `git push`
+# 會走 SSH 還是 fallback HTTPS。
+#
+# 限制(set -e 友善):每個探測都包在 if ... then ... fi,失敗不終止
+# post-create.sh,只是 warn。
+# 冪等性:純讀取/列印,容器每次重建都跑無副作用。
+# ============================================================
+echo ""
+echo "==> SSH agent forwarding sanity check..."
+if [ -S /ssh-agent ]; then
+    if SSH_AUTH_SOCK=/ssh-agent ssh-add -l >/dev/null 2>&1; then
+        echo "==> SSH agent forwarded; \`git push\` will use SSH keys"
+    else
+        # socket 在但 ssh-add -l 失敗:可能 agent 沒裝 key,或 socket
+        # 是個 dangling fd。仍視為 fallback 給使用者一個提示。
+        echo "WARN: /ssh-agent socket exists but \`ssh-add -l\` failed — \`git push\` will fall back to HTTPS. (在 host 端跑 \`ssh-add\` 把 key 加進 agent 後重開容器即可)"
+    fi
+else
+    echo "WARN: SSH agent not forwarded — \`git push\` will fall back to HTTPS. (macOS users: VS Code Dev Containers auto-forwarding may differ; see project docs)"
 fi
 

@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { register } from 'prom-client';
 
 /**
  * US2: HTTP_METRICS_ENABLED=false disables the httpMetrics middleware
@@ -20,9 +19,21 @@ import { register } from 'prom-client';
  * FR-007 (opt-out), FR-008 (non-regression), SC-003, SC-006.
  */
 describe('HTTP middleware metrics opt-out (US2)', () => {
-  beforeEach(() => {
-    register.clear();
+  beforeEach(async () => {
+    // Belt-and-suspenders clear of the prom-client default register: clear
+    // both the pre-reset and post-reset module instances, because vitest's
+    // `vi.resetModules()` interacts unpredictably with CJS deps in node_modules
+    // and can yield different `register.globalRegistry` references between
+    // top-level static imports, dynamic imports, and the implicit re-import
+    // triggered when src/metrics.ts is re-loaded. Without this, the second
+    // test's dynamic import of src/app.ts re-runs `collectDefaultMetrics()`
+    // against a register still holding the previous run's default metrics
+    // and throws "process_cpu_user_seconds_total has already been registered".
+    const pcPre = await import('prom-client');
+    pcPre.register.clear();
     vi.resetModules();
+    const pcPost = await import('prom-client');
+    pcPost.register.clear();
     vi.stubEnv('HTTP_METRICS_ENABLED', 'false');
   });
 
@@ -30,26 +41,35 @@ describe('HTTP middleware metrics opt-out (US2)', () => {
     vi.unstubAllEnvs();
   });
 
-  it('disabled flag → /metrics has no http_* lines, still has default metrics', async () => {
-    const { app } = await import('../src/app.ts');
+  // Bumped timeout: this is the FIRST test in the file to dynamically `import('../src/app.ts')`
+  // after `vi.resetModules()`. The cold dynamic re-import on a worker (with pino,
+  // pg, ioredis, prom-client, etc. transitively re-evaluated) routinely takes
+  // 8–12s on slower CI / WSL2 hosts. Subsequent tests reuse the transform cache
+  // and run in ~1s, so this 30s ceiling is only consumed by the first test.
+  it(
+    'disabled flag → /metrics has no http_* lines, still has default metrics',
+    async () => {
+      const { app } = await import('../src/app.ts');
 
-    // Generate request traffic that would normally produce http_* samples.
-    await app.request('/');
-    await app.request('/');
+      // Generate request traffic that would normally produce http_* samples.
+      await app.request('/');
+      await app.request('/');
 
-    const res = await app.request('/metrics');
-    expect(res.status).toBe(200);
-    const body = await res.text();
+      const res = await app.request('/metrics');
+      expect(res.status).toBe(200);
+      const body = await res.text();
 
-    // FR-007: no http_* samples when disabled.
-    expect(body).not.toMatch(/^http_requests_total/m);
-    expect(body).not.toMatch(/^http_request_duration_seconds/m);
+      // FR-007: no http_* samples when disabled.
+      expect(body).not.toMatch(/^http_requests_total/m);
+      expect(body).not.toMatch(/^http_request_duration_seconds/m);
 
-    // FR-004 / SC-006: 001 default metrics still present.
-    expect(body).toMatch(/process_cpu_seconds_total/);
-    expect(body).toMatch(/process_resident_memory_bytes/);
-    expect(body).toMatch(/nodejs_heap_size_total_bytes/);
-  });
+      // FR-004 / SC-006: 001 default metrics still present.
+      expect(body).toMatch(/process_cpu_seconds_total/);
+      expect(body).toMatch(/process_resident_memory_bytes/);
+      expect(body).toMatch(/nodejs_heap_size_total_bytes/);
+    },
+    30_000,
+  );
 
   it('FR-008 non-regression: GET / returns same JSON shape as 001 baseline', async () => {
     const { app } = await import('../src/app.ts');
@@ -82,9 +102,14 @@ describe('HTTP middleware metrics opt-out (US2)', () => {
 });
 
 describe('HTTP middleware metrics opt-out — whitespace tolerance (M-2)', () => {
-  beforeEach(() => {
-    register.clear();
+  beforeEach(async () => {
+    // Same belt-and-suspenders pattern as the parent describe — see the long
+    // comment there for why both pre- and post-reset clears are needed.
+    const pcPre = await import('prom-client');
+    pcPre.register.clear();
     vi.resetModules();
+    const pcPost = await import('prom-client');
+    pcPost.register.clear();
   });
 
   afterEach(() => {

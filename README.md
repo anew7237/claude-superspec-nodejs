@@ -24,6 +24,23 @@
 
 ---
 
+## Baseline Spec & Contracts
+
+本專案最新一版 baseline spec 位於 `specs/001-superspec-baseline/`,
+描述此 template 對 adopter 的契約面與承諾。
+
+- [`specs/001-superspec-baseline/spec.md`](specs/001-superspec-baseline/spec.md) — 5 user stories / 20 FR / 10 SC / 11 edge cases
+- [`specs/001-superspec-baseline/plan.md`](specs/001-superspec-baseline/plan.md) — Technical Context、Constitution Check(對齊憲法 v1.2.2)、Project Structure
+- [`specs/001-superspec-baseline/research.md`](specs/001-superspec-baseline/research.md) — 5 clarification decisions + 19 FR gap analysis
+- [`specs/001-superspec-baseline/data-model.md`](specs/001-superspec-baseline/data-model.md) — 7 regulatory entities(Adopter / DevContainer Definition / Constitution / Feature Spec Artifact / Application Stack / Quality Gate / Toolchain Pin)
+- [`specs/001-superspec-baseline/contracts/`](specs/001-superspec-baseline/contracts/) — 5 contracts(CLI pipeline / devcontainer / observability / quality gates / sensitive material)
+- [`specs/001-superspec-baseline/quickstart.md`](specs/001-superspec-baseline/quickstart.md) — adopter walkthrough(乾淨機 → 跑通第一個 SDD pipeline)
+- [`specs/001-superspec-baseline/tasks.md`](specs/001-superspec-baseline/tasks.md) — 24 implementation tasks(可參考但已被本 baseline 流程消化)
+
+> 後續 feature spec 將沿用此結構,於 `specs/<NNN-feature-name>/` 下產出。
+
+---
+
 ## 1. 先決條件
 
 ### Mac (Apple Silicon)
@@ -140,6 +157,9 @@ docker compose -f docker-compose.prod.yml up -d   # 部署(自行擴充的檔案
 
 ## 6. 團隊協作須知
 
+> Git workflow 規範詳細見 [`.docs/git-workflow.md`](.docs/git-workflow.md)
+> (commit / push / branch / tag / 機密物規則)。
+
 ### ✅ 進 git 的東西
 - `.claude/settings.json`、`.claude/skills/`(共用 skills)
 - `CLAUDE.md` (Claude Code 的 runtime 指引,屬團隊規範)
@@ -188,6 +208,8 @@ uv tool install specify-cli --force --from "git+https://github.com/github/spec-k
 ---
 
 ## 8. 常見問題
+
+> 上游服務 outage 時的 degraded-mode 指南另見 [`.docs/upstream-outage-runbook.md`](.docs/upstream-outage-runbook.md)。
 
 ### Claude Code 在容器裡叫我重新登入
 
@@ -242,6 +264,8 @@ make up                            # 重新 build
 ---
 
 ## + HTTP 業務指標
+
+> 完整契約規範見 [`specs/001-superspec-baseline/contracts/observability.md`](specs/001-superspec-baseline/contracts/observability.md);本段為 adopter-friendly 摘要。
 
 `/metrics` endpoint 除 001 提供的 default runtime metrics(`process_*`、`nodejs_*`)外,
 **預設**再暴露兩個 HTTP 層業務指標,供 Prometheus / VictoriaMetrics scrape、
