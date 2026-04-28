@@ -1,6 +1,12 @@
 <!-- SPECKIT START -->
-For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
+Active feature: `001-superspec-baseline`
+For technologies to use, project structure, shell commands, and other
+important information for the active feature, read:
+- `specs/001-superspec-baseline/plan.md` (Technical Context, Constitution Check, Project Structure)
+- `specs/001-superspec-baseline/research.md` (clarification decisions + FR gap analysis)
+- `specs/001-superspec-baseline/data-model.md` (regulatory entities, lifecycles, invariants)
+- `specs/001-superspec-baseline/contracts/*.md` (CLI pipeline / devcontainer / observability / quality gates / sensitive material)
+- `specs/001-superspec-baseline/quickstart.md` (adopter walkthrough)
 <!-- SPECKIT END -->
 
 # Git Workflow (Project-Specific Override of Global Preferences)
