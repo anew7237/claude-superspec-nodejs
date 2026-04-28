@@ -15,28 +15,47 @@
 
 ---
 
+## References
+- [Anthropic Claude Code 官方 devcontainer feature](https://github.com/anthropics/devcontainer-features)
+- [Claude Code Legal & Compliance](https://code.claude.com/docs/en/legal-and-compliance)
+- [GitHub Spec-Kit](https://github.com/github/spec-kit) (SDD)
+- [obra/superpowers](https://github.com/obra/superpowers) (TDD)
+
+
+---
+
 ## 1. 先決條件
 
 ### Mac (Apple Silicon)
 - [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/)
   - Settings → General → 「Use Rosetta for x86_64/amd64 emulation」打開
   - Settings → Resources → 至少給 8GB RAM、4 CPU
-- [VS Code](https://code.visualstudio.com/)
-- [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+- [VS Code](https://code.visualstudio.com/) + Extension: [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
 
 ### Windows + WSL2 Ubuntu
 - WSL2 with Ubuntu 24.04
 - [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)
   - Settings → Resources → WSL Integration → 勾選你的 Ubuntu distro
-- VS Code + Dev Containers extension
-- **重要**:把專案 clone 在 WSL 檔案系統(`~/`),**不要**放在 `/mnt/c/`
-  (跨檔案系統 IO 慢 5-10 倍)
+- [VS Code](https://code.visualstudio.com/) + Extension: [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
 
-### 兩邊環境都要登入 Claude Code
-- 已登入 Claude Code 一次(Pro / Max / Team / Enterprise 訂閱)
-  - host 端執行 `claude`,**先完成 OAuth login**
+> **重要**:把專案 clone 在 WSL 檔案系統(`~/`),**不要**放在 `/mnt/c/` (跨檔案系統 IO 慢 5-10 倍)
+
+### Mac & WSL 皆要做
+- 登入 Claude Code 一次(Pro / Max / Team / Enterprise 訂閱)
+  - 宿主端執行 `claude`,**先完成 OAuth login**
   - 之後 `~/.claude` 整個目錄都會 mount 進 container,**容器內不用再登入** (含 `.credentials.json` 與 `~/.claude.json` )
-    
+
+### 跨平台已知差異
+| 議題 | Mac M1 | WSL Ubuntu |
+|---|---|---|
+| `~/.claude` | `/Users/xxx/.claude` | `/home/xxx/.claude` |
+| 處理器架構 | arm64 | amd64 |
+| 檔案系統效能 | `node_modules` 用 named volume(`app-node_modules`)避開 osxfs | 同左 named volume 機制 |
+| Docker Desktop | Rosetta 開啟 emulate amd64 | WSL Integration 開啟 |
+| 實際 mount | VS Code Dev Containers 自動處理 | 同左 |
+
+> 若某個 base image 只有 amd64 (Mac M1 上會用 Rosetta 跑,慢)
+> 則在 docker-compose.yml 對應的 service 加: `platform: linux/amd64`
 
 ---
 
@@ -54,21 +73,23 @@
 
 ---
 
-## 3. SDD + TDD 工作流(在 Claude Code 內)
-
-- [Claude Code 環境下使用 Superpowers + Spec-Kit 整合開發流程](https://github.com/anew7237/claude-superspec/blob/main/.docs/superspec-workflow-SKv0.8.1.md)
-
-## 4. 日常開發指令
+## 3. 日常開發指令
 
 - devcontainer 內用 make 操作 docker compose (用 `make help` 看完整列表)
 
 - devcontainer 內可 git push、PR、deploy:
 
 ```bash
-git push                          # SSH agent 從 host 自動轉發
+git push                          # SSH agent 從 宿主端自動轉發
 gh pr create --fill               # GitHub CLI 已預裝
 docker compose -f docker-compose.prod.yml up -d   # 部署(自行擴充的檔案)
 ```
+
+---
+
+## 4. Claude Code + Spec-Kit (SDD) + Superpowers (TDD) 開發流程
+
+- [Claude Code 環境下使用 Superpowers + Spec-Kit 整合開發流程](https://github.com/anew7237/claude-superspec/blob/main/.docs/superspec-workflow-SKv0.8.1.md)
 
 ---
 
@@ -78,7 +99,7 @@ docker compose -f docker-compose.prod.yml up -d   # 部署(自行擴充的檔案
 .
 ├── .claude/
 │   ├── settings.json        # 團隊共用 Claude Code 設定(進 git)
-│   └── skills/              # 共用 skills(進 git);個人 skills 在 host
+│   └── skills/              # 共用 skills(進 git); (個人 skills 在宿主端 ~/.claude/skills)
 ├── .devcontainer/
 │   ├── devcontainer.json    # VS Code devcontainer 設定
 │   ├── Dockerfile           # dev 環境 image base(uv + 系統工具;node 與 claude code 由 features 提供)
@@ -120,22 +141,21 @@ docker compose -f docker-compose.prod.yml up -d   # 部署(自行擴充的檔案
 ## 6. 團隊協作須知
 
 ### ✅ 進 git 的東西
-- `.devcontainer/` 整個
 - `.claude/settings.json`、`.claude/skills/`(共用 skills)
+- `CLAUDE.md` (Claude Code 的 runtime 指引,屬團隊規範)
 - `.specify/` 整個(constitution、specs、plans 都是團隊資產)
-- `CLAUDE.md`(Claude Code 的 runtime 指引,屬團隊規範)
+- `.devcontainer/` 整個(Dev Containers 跨平台共用環境)
 - `Dockerfile`、`docker-compose.yml`、`.dockerignore`
-- `Makefile`、`README.md`
+- `Makefile`、`.env.example` (範例,不含實際 secrets)
+- `README.md`、`.gitignore`、`.gitattributes`
 - `package.json`、`pnpm-lock.yaml`、`tsconfig.json`、`tsconfig.lint.json`
-- `eslint.config.js`、`.prettierrc.json`、`.prettierignore`
-- `.gitignore`、`.gitattributes`、`.nvmrc`
-- `.env.example`(範例,不含實際 secrets)
+- `.nvmrc`、`.prettierrc.json`、`.prettierignore`、`eslint.config.js`
 
 ### ❌ 不進 git
 - `.claude/.credentials.json`、`.claude.json` — Anthropic credentials
-- `.env` — 實際 secrets
-- `docker-compose.override.yml` — 個人本機調整
-- 任何 `*.pem`、`*.key`
+- `.env` (實際 secrets)
+- `docker-compose.override.yml` (個人本機調整)
+- `*.pem`、`*.key` (任何 密鑰私鑰 **皆不可簽入**)
 
 ### Anthropic ToS 重點
 - 每個成員用**自己的** Claude 訂閱帳號登入
@@ -146,20 +166,23 @@ docker compose -f docker-compose.prod.yml up -d   # 部署(自行擴充的檔案
 
 ---
 
-## 7. 跨平台已知差異
+## 7. 升級
 
-| 議題 | Mac M1 | WSL Ubuntu |
-|---|---|---|
-| Architecture | arm64 | amd64 |
-| 檔案系統效能 | `~/.claude` mount 用 `:cached`,`node_modules` 走 named volume(`app-node_modules`)避開 osxfs | 同左 named volume 機制;repo 必須在 `~/`,別用 `/mnt/c/` |
-| Docker Desktop | Rosetta 開啟 emulate amd64 | WSL Integration 開啟 |
-| `~/.claude` 路徑 | `/Users/xxx/.claude` | `/home/xxx/.claude` |
-| 實際 mount | VS Code Dev Containers 自動處理 | 同左 |
+### devcontainer 整個重 build
+VS Code Command Palette → `Dev Containers: Rebuild Container`
 
-如果某個 base image 只有 amd64(Mac M1 上會用 Rosetta 跑,慢),
-在 docker-compose.yml 對應的 service 加:
-```yaml
-platform: linux/amd64
+### Claude Code 升級
+宿主端跟容器內都會自動更新(npm package),強制更新:
+```bash
+npm install -g @anthropic-ai/claude-code@latest
+```
+
+### Spec-Kit 升級
+編輯 `.devcontainer/post-create.sh` 中的 `SPEC_KIT_VERSION`,
+然後在 devcontainer 內(升級時加 `--force` 強制重裝)
+(首次安裝由 `post-create.sh` 自動處理,不需 `--force`):
+```bash
+uv tool install specify-cli --force --from "git+https://github.com/github/spec-kit.git@v0.8.1"
 ```
 
 ---
@@ -168,8 +191,8 @@ platform: linux/amd64
 
 ### Claude Code 在容器裡叫我重新登入
 
-確認 host 端真的登入過(`ls ~/.claude/.credentials.json`)。如果有,
-檢查 `devcontainer.json` 的 mount 路徑跟你 host 的 `$HOME` 一致。
+確認 宿主端真的登入過(`ls ~/.claude/.credentials.json`)。如果有,
+檢查 `devcontainer.json` 的 mount 路徑跟你 宿主端的 `$HOME` 一致。
 WSL 內 `$HOME` 是 `/home/xxx`,不是 Windows 的 `C:\Users\xxx`。
 
 ### docker compose up 在 container 內找不到 docker socket
@@ -179,7 +202,7 @@ WSL 內 `$HOME` 是 `/home/xxx`,不是 Windows 的 `C:\Users\xxx`。
 docker version
 ls -la /var/run/docker.sock
 ```
-如果 socket 沒出現,檢查 host Docker Desktop 是否在運行。
+如果 socket 沒出現,檢查宿主端 Docker Desktop 是否在運行。
 
 ### Mac M1 build 某個 image 很慢
 
@@ -216,31 +239,9 @@ git commit -m "chore: refresh pnpm-lock.yaml"
 make up                            # 重新 build
 ```
 
-
 ---
 
-## 9. 升級
-
-### Spec-Kit 升級
-編輯 `.devcontainer/post-create.sh` 中的 `SPEC_KIT_VERSION`,
-然後在 devcontainer 內(升級時加 `--force` 強制重裝;首次安裝由
-`post-create.sh` 自動處理,不需 `--force`):
-```bash
-uv tool install specify-cli --force --from "git+https://github.com/github/spec-kit.git@v0.8.1"
-```
-
-### Claude Code 升級
-host 端跟容器內都會自動更新(npm package),強制更新:
-```bash
-npm install -g @anthropic-ai/claude-code@latest
-```
-
-### devcontainer 整個重 build
-VS Code Command Palette → `Dev Containers: Rebuild Container`
-
----
-
-## 10. HTTP 業務指標
+## + HTTP 業務指標
 
 `/metrics` endpoint 除 001 提供的 default runtime metrics(`process_*`、`nodejs_*`)外,
 **預設**再暴露兩個 HTTP 層業務指標,供 Prometheus / VictoriaMetrics scrape、
@@ -317,10 +318,3 @@ histogram_quantile(0.99, sum by(le, route) (rate(http_request_duration_seconds_b
 更多細節:`specs/NNN-feature-name/`(spec / contracts / quickstart)。
 
 ---
-
-## 11. 進一步閱讀
-
-- [Anthropic Claude Code 官方 devcontainer feature](https://github.com/anthropics/devcontainer-features)
-- [Claude Code Legal & Compliance](https://code.claude.com/docs/en/legal-and-compliance)
-- [GitHub Spec-Kit](https://github.com/github/spec-kit) (SDD)
-- [obra/superpowers](https://github.com/obra/superpowers) (TDD)
