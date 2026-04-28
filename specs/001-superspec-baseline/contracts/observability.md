@@ -68,3 +68,18 @@
 
 > 「降為 advisory」意指 baseline 不再強制這些規範,但若 derivative 主張遵守
 > 觀測規範,實作必須與本契約等價。
+
+## 實作對照(implementation mapping)
+
+對應 contract 內每條不變量到 `src/` 實際實作位置(行號為當前 commit `4df82c0` 對應檔案的範圍;若 src/ 變動須同步更新此映射或重跑 T017):
+
+| Contract 不變量 | 實作位置 | 簡述 |
+|---|---|---|
+| 1. 新加 HTTP route 自動繼承指標 | `src/http-metrics.ts:123-208` | `httpMetrics()` factory + 回傳 closure;只要在 `app.use(mountPattern, ...)` 之下,counter / histogram 於 finally 區塊統一記錄(`204-205`) |
+| 2. Cardinality 防護(`route` = 模板路徑) | `src/http-metrics.ts:175-197` | `rawRoutePath = c.req.routePath` 直接當 label;`else` 分支(`196`)寫入模板路徑而非實際 URL |
+| 3. 未匹配 → `not_found`;routePath API 失效 → `unknown` | `src/http-metrics.ts:53-93`(啟動 probe)+ `177-185`(per-request fallback) | `probeRoutePathSupport()` 開機跑一次合成請求;每次請求 finally 內若 `routePath` 空再 fallback 並 `logger.warn` 一次 |
+| 4. Matched 404 vs unmatched 404 分流 | `src/http-metrics.ts:186-197` | `rawRoutePath === mountPattern && status === 404` → `not_found`;其餘 404(包含 `app.get('/items/:id', ..., 404)`)走 `else` 分支保留模板路徑 |
+| 5. `/health` `/` byte-equivalent on opt-out | `src/app.ts:17-20` | `HTTP_METRICS_ENABLED` 於 module load 時 `.trim().toLowerCase() === 'false'` 直接 short-circuit,middleware 完全不掛 → response 不增 header 也不增 body |
+| 6. `/metrics` 在 `/health` 503 時仍可 serve | `src/app.ts:46-49` | `/metrics` handler 只 `await register.metrics()`,不依賴 `pool.query` / `redis.ping`;`/health`(`24-44`)degrade 不影響 `/metrics` |
+
+> **Synthesis 注意**:本 mapping 為 commit `4df82c0` 凍結值。對 `src/http-metrics.ts` 的任何重構都應重審此表;若有不變量改動,須先升級本 contract(走 spec amendment),否則 mapping 必失準。
